@@ -148,6 +148,12 @@ class HMNN(nn.Module):
             mean_probs: Mean class probabilities
             std_probs: Standard deviation of class probabilities
         """
+        # Ensure inputs are properly flattened for image data like MNIST
+        if len(x.shape) > 2:
+            # For image data (batch_size, channels, height, width)
+            batch_size = x.size(0)
+            x = x.view(batch_size, -1)  # Flatten to (batch_size, features)
+        
         predictions = []
         for _ in range(n_samples):
             logits = self.forward(x, sample=True)

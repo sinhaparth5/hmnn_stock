@@ -27,8 +27,14 @@ def evaluate_classification(model, data_loader, device, n_samples=10):
         for inputs, targets in data_loader:
             inputs, targets = inputs.to(device), targets.to(device)
             
+            # Ensure inputs are properly flattened for image data like MNIST
+            if len(inputs.shape) > 2:
+                # For image data (batch_size, channels, height, width)
+                batch_size = inputs.size(0)
+                inputs = inputs.view(batch_size, -1)  # Flatten to (batch_size, features)
+            
             # Make predictions with uncertainty
-            if targets.dtype == torch.long:  # Multi-class classification
+            if model.layers[-1].out_features > 1:  # Multi-class classification
                 # Get class probabilities
                 mean_probs, std_probs = model.predict_proba(inputs, n_samples)
                 preds = mean_probs.argmax(dim=1)
@@ -67,8 +73,10 @@ def evaluate_classification(model, data_loader, device, n_samples=10):
     # Calculate metrics
     accuracy = accuracy_score(targets, predictions)
     
-    # Calculate metrics based on classification type
-    if len(predictions.shape) > 1 and predictions.shape[1] > 1:  # Multi-class
+    # Check if we're dealing with multi-class (more than 2 unique classes)
+    is_multiclass = len(np.unique(targets)) > 2 or model.layers[-1].out_features > 1
+    
+    if is_multiclass:  # Multi-class
         # Use macro averaging for multi-class
         precision = precision_score(targets, predictions, average='macro')
         recall = recall_score(targets, predictions, average='macro')
@@ -102,9 +110,15 @@ def evaluate_classification(model, data_loader, device, n_samples=10):
     if uncertainties.ndim > 1:
         # For multi-class, use average uncertainty across classes
         avg_uncertainty = np.mean(uncertainties, axis=1)
-        uncertainty_correlation = np.corrcoef(errors, avg_uncertainty)[0, 1]
+        try:
+            uncertainty_correlation = np.corrcoef(errors, avg_uncertainty)[0, 1]
+        except:
+            uncertainty_correlation = None
     else:
-        uncertainty_correlation = np.corrcoef(errors, uncertainties.flatten())[0, 1]
+        try:
+            uncertainty_correlation = np.corrcoef(errors, uncertainties.flatten())[0, 1]
+        except:
+            uncertainty_correlation = None
     
     metrics = {
         'accuracy': accuracy,
